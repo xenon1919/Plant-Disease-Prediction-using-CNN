@@ -1,40 +1,59 @@
 import json
-from PIL import Image
 import numpy as np
 import tensorflow as tf
 import streamlit as st
+from PIL import Image
+import requests
+from io import BytesIO
 
-# Load the pre-trained model
-model = tf.keras.models.load_model("plant_disease_prediction_model.h5")
+# Google Drive File ID for the model
+FILE_ID = "169KurWfpPT0m3eoPKG0cHtxYDc1GvJiO"
 
-# Load the class indices
+# Function to download the model from Google Drive
+def download_model_from_drive(file_id):
+    url = f"https://drive.google.com/uc?id={file_id}"
+    response = requests.get(url, stream=True)
+    if response.status_code == 200:
+        with open("plant_disease_prediction_model.h5", "wb") as f:
+            f.write(response.content)
+        return "plant_disease_prediction_model.h5"
+    else:
+        st.error("Failed to download model.")
+        return None
+
+# Load model from Google Drive
+model_path = download_model_from_drive(FILE_ID)
+if model_path:
+    model = tf.keras.models.load_model(model_path)
+
+# Load class indices from JSON file (Ensure this file is in your project directory)
 with open("class_indices.json", "r") as f:
     class_indices = json.load(f)
 
-# Function to load and preprocess the image
+# Function to preprocess image
 def load_and_preprocess_image(image, target_size=(224, 224)):
-    img = image.resize(target_size)
+    img = image.resize(target_size)  # Resize image
     img_array = np.array(img, dtype=np.float32) / 255.0  # Normalize
     img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
     return img_array
 
-# Function to predict the class of an image
+# Function to predict image class
 def predict_image_class(image):
     preprocessed_img = load_and_preprocess_image(image)
     predictions = model.predict(preprocessed_img)
-    predicted_class_index = np.argmax(predictions)
-    return class_indices[str(predicted_class_index)]
+    predicted_class_index = np.argmax(predictions)  # Get class index
+    return class_indices[str(predicted_class_index)]  # Map index to class name
 
-# Streamlit app UI
-st.title('🌿 Plant Disease Classifier 🌿')
+# Streamlit UI
+st.title("🌿 Plant Disease Classifier 🌿")
 
 st.markdown("""
 ### Instructions:
-1. Upload an image of a plant leaf.
-2. Click the "Classify" button to predict the disease.
+1. Upload a plant leaf image.
+2. Click "Classify" to predict the disease.
 """)
 
-# File uploader for the image
+# File uploader for image input
 uploaded_image = st.file_uploader("Upload an image...", type=["jpg", "jpeg", "png"])
 
 if uploaded_image:
@@ -43,7 +62,7 @@ if uploaded_image:
 
     with col1:
         st.image(image, caption="Uploaded Image", use_column_width=True)
-    
+
     with col2:
         if st.button("Classify"):
             with st.spinner("Classifying..."):
